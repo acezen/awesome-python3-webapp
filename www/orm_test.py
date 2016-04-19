@@ -12,7 +12,7 @@ from models import User, Blog, Comment
 def test_save(loop):
     yield from orm.create_pool(loop, user='www-data', password='www-data', db='awesome')
 
-    u = User(name='Test', email='test@example.com', passwd='1234567890', image='about:blank')
+    u = User(name='Test1', email='test1@example.com', passwd='1234567890', image='about:blank')
 
     yield from u.save()
 

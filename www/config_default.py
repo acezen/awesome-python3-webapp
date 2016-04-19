@@ -13,11 +13,11 @@ configs = {
     'db': {
         'host': '127.0.0.1',
         'port': 3360,
-        'user': 'www-data',
-        'password': 'www-data',
+        'user': 'www',
+        'password': 'www',
         'database': 'awesome'
     },
     'session': {
-        'secret': 'AwEs0mE'
+        'secret': 'Awesome'
     }
 }
