@@ -18,7 +18,7 @@ def get(path):
     Define decorator @get('/path')
     '''
     def decorator(func):
-        @functools.wraps(func):
+        @functools.wraps(func)
         def wrapper(*args, **kw):
             return func(*args, **kw)
         wrapper.__method__ = 'GET'
@@ -57,7 +57,7 @@ def get_required_kw_args(fn):
     # 返回一个包含inspect.Parameter类型的dict
     params = inspect.signature(fn).parameters
     for name, param in params.items():
-        if param.kind == inspect.Parameter.KEYWORD_ONLY and param.default == inspect.empty:
+        if param.kind == inspect.Parameter.KEYWORD_ONLY and param.default == inspect.Parameter.empty:
             args.append(name)
     return tuple(args)
 
@@ -70,7 +70,8 @@ def get_named_kw_args(fn):
     for name, param in params.items():
         if param.kind == inspect.Parameter.KEYWORD_ONLY:
             args.append(name)
-        return tuple(args)
+    
+    return tuple(args)
 
 def has_named_kw_args(fn):
     '''
@@ -114,9 +115,9 @@ class RequestHandler(object):
         self._app = app
         self._func = fn 
         self._has_request_arg = has_request_arg(fn)
-        self._has_var_kw_arg = has_var_kw_args(fn)
+        self._has_var_kw_arg = has_var_kw_arg(fn)
         self._has_named_kw_args = has_named_kw_args(fn)
-        self._name_kw_args = get_named_kw_args(fn)
+        self._named_kw_args = get_named_kw_args(fn)
         self._required_kw_args = get_required_kw_args(fn)
 
     # __call__:
@@ -134,6 +135,7 @@ class RequestHandler(object):
                 # POST方法的解析参数
                 if not request.content_type:
                     return web.HTTPBadRequest('Missing Content-Type.')
+
                 ct = request.content_type.lower()
                 if ct.startswith('application/json'):
                     params = yield from request.json()
@@ -145,44 +147,46 @@ class RequestHandler(object):
                     kw = dict(**params)
                 else:
                     return web.HTTPBadRequest('Unsupported Content-Type: %s' % request.content_type)
-                if request.method == 'GET':
-                    # GET方法下的参数解析
-                    qs = request.query_string
-                    if qs:
-                        kw = dict()
-                        for k, v in parse.parse_qs(qs, True).items():
-                            kw[k] = v[0]
-                if kw is None:
-                    # kw为空，取request.match_info
-                    kw = dict(**request.match_info)
-                else:
-                    if not self._has_var_kw_arg and self._name_kw_args:
-                        # remove all unamed kw:
-                        copy = dict()
-                        for name in self._named_kw_args:
-                            if name in kw:
-                                copy[name] = kw[name]
-                        kw = copy
-                    # check named arg:
-                    for k, v in request.match_info.items():
-                        if k in kw:
-                            logging.warning('Duplicate arg name in named arg and kw args: %s' % k)
-                        kw[k] = v
+                
+            if request.method == 'GET':
+                # GET方法下的参数解析
+                qs = request.query_string
+                if qs:
+                    kw = dict()
+                    for k, v in parse.parse_qs(qs, True).items():
+                        kw[k] = v[0]
 
-                if self._has_request_arg:
-                    kw['request'] = request
-                # check required kw:
-                if self._required_kw_args:
-                    for name in self._required_kw_args:
-                        if not name in kw:
-                            return web.HTTPBadRequest('Missing argument: %s' % name)
+        if kw is None:
+            # kw为空，取request.match_info
+            kw = dict(**request.match_info)
+        else:
+            if not self._has_var_kw_arg and self._named_kw_args:
+                # remove all unamed kw:
+                copy = dict()
+                for name in self._named_kw_args:
+                    if name in kw:
+                        copy[name] = kw[name]
+                kw = copy
+            # check named arg:
+            for k, v in request.match_info.items():
+                if k in kw:
+                    logging.warning('Duplicate arg name in named arg and kw args: %s' % k)
+                kw[k] = v
 
-                logging.info('call with args: %s' % str(kw))
-                try:
-                    r = yield from self._func(**kw)
-                    return r
-                except APIError as e:
-                    return dict(error=e.error, data=e.data, message=e.message)
+        if self._has_request_arg:
+            kw['request'] = request
+        # check required kw:
+        if self._required_kw_args:
+            for name in self._required_kw_args:
+                if not name in kw:
+                    return web.HTTPBadRequest('Missing argument: %s' % name)
+
+        logging.info('call with args: %s' % str(kw))
+        try:
+            r = yield from self._func(**kw)
+            return r
+        except APIError as e:
+            return dict(error=e.error, data=e.data, message=e.message)
 
 # 添加静态页面的路径：
 def add_static(app):
@@ -190,7 +194,7 @@ def add_static(app):
     app.router.add_static('/static/', path)
     logging.info('add static %s => %s' % ('/static/', path))
 
-def add_router(app, fn):
+def add_route(app, fn):
     method = getattr(fn, '__method__', None)
     path = getattr(fn, '__route__', None)
     if path is None or method is None:
@@ -199,7 +203,7 @@ def add_router(app, fn):
     if not asyncio.iscoroutinefunction(fn) and not inspect.isgeneratorfunction(fn):
         fn = asyncio.coroutine(fn)
 
-    logging.info('add route %s %s => %s(%s)' % (method, path, fn.__name__, ', 'join(inspect.signature(fn).parameters.key())))
+    logging.info('add route %s %s => %s(%s)' % (method, path, fn.__name__, ', '.join(inspect.signature(fn).parameters.keys())))
     app.router.add_route(method, path, RequestHandler(app, fn))
 
 def add_routes(app, module_name):

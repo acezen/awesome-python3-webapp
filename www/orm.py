@@ -4,6 +4,8 @@
 __author__ = 'acezen(Ace Zeng)'
 
 
+import pdb
+
 import asyncio, logging
 
 import aiomysql
@@ -19,7 +21,7 @@ def create_pool(loop, **kw):
     global __pool
     __pool = yield from aiomysql.create_pool(
         host=kw.get('host', 'localhost'),
-        port=kw.get('port', 3360),
+        port=kw.get('port', 3306),
         user=kw['user'],
         password=kw['password'],
         db=kw['db'],
@@ -40,6 +42,7 @@ def select(sql, args, size=None):
     # 异步等待连接池返回连接, with封装了清理和异常处理操作
     with (yield from __pool) as conn:
         # aiomysql.DictCursor可以通过dict的方式获取数据库对象
+        pdb.set_trace()
         cur = yield from conn.cursor(aiomysql.DictCursor)
         # 执行sql语句
         yield from cur.execute(sql.replace('?', '%s'), args or ())
@@ -48,6 +51,7 @@ def select(sql, args, size=None):
             rs = yield from cur.fetchmany(size)
         else:       # 所有结果集
             rs = yield from cur.fetchall()
+
         yield from cur.close()
         logging.info('rows returned: %s' % len(rs))
         return rs
@@ -62,7 +66,7 @@ def execute(sql, args, autocommit=True):
             yield from conn.begin()
 
         try:
-            cur = yield from conn.cursor()
+            cur = yield from conn.cursor(aiomysql.DictCursor)
             yield from cur.execute(sql.replace('?', '%s'), args)
             affected = cur.rowcount
             yield from cur.close()
@@ -173,7 +177,7 @@ class Model(dict, metaclass=ModelMetaclass):
     def __getattr__(self, key):
         try:
             return self[key]
-        except keyError:
+        except KeyError:
             raise AttributeError(r"'Model' object has no attribute '%s'" % key)
 
     def __setattr__(self, key, value):
@@ -252,6 +256,7 @@ class Model(dict, metaclass=ModelMetaclass):
     def save(self):
         args = list(map(self.getValueOrDefault, self.__fields__))
         args.append(self.getValueOrDefault(self.__primary_key__))
+        rows = yield from execute(self.__insert__, args)
         if rows != 1:
             logging.warn('failed to insert record: affected rows: %s' % rows)
 
