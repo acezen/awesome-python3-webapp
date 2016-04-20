@@ -4,7 +4,6 @@
 __author__ = 'acezen(Ace Zeng)'
 
 
-import pdb
 
 import asyncio, logging
 
@@ -42,7 +41,6 @@ def select(sql, args, size=None):
     # 异步等待连接池返回连接, with封装了清理和异常处理操作
     with (yield from __pool) as conn:
         # aiomysql.DictCursor可以通过dict的方式获取数据库对象
-        pdb.set_trace()
         cur = yield from conn.cursor(aiomysql.DictCursor)
         # 执行sql语句
         yield from cur.execute(sql.replace('?', '%s'), args or ())
@@ -220,7 +218,7 @@ class Model(dict, metaclass=ModelMetaclass):
         orderBy = kw.get('orderBy', None)
         if orderBy:
             sql.append('order by')
-            sq.append(orderBy)
+            sql.append(orderBy)
 
         limit = kw.get('limit', None)
         if limit is not None:
