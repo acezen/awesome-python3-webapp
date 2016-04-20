@@ -7,7 +7,7 @@ __author__ = 'acezen(Ace Zeng)'
 async web application
 """
 
-import pdb
+
 # 日志模块，跟踪INFO级别以上的日志信息
 import logging; logging.basicConfig(level=logging.INFO)
 
@@ -19,6 +19,8 @@ from jinja2 import Environment, FileSystemLoader
 
 import orm
 from coroweb import add_routes, add_static
+
+from handlers import cookie2user, COOKIE_NAME
 
 def init_jinja2(app, **kw):
     logging.info('init jinja2...')
@@ -63,6 +65,27 @@ def logger_factory(app, handler):
         # 继续处理请求
         return (yield from handler(request))
     return logger
+
+@asyncio.coroutine
+def auth_factory(app, handler):
+    @asyncio.coroutine
+    def auth(request):
+        logging.info('check user: %s %s' % (request.method, request.path))
+        request.__user__ = None
+        cookie_str = request.cookies.get(COOKIE_NAME)
+
+        if cookie_str:
+            user = yield from cookie2user(cookie_str)
+            if user:
+                logging.info('set current user: %s' % user.email)
+                request.__user__ = user
+
+        if request.path.startswith('/manage/') and (request.__user__ is None or not request.__user__.admin):
+            return web.HTTPFound('/signin')
+
+        return (yield from handler(request))
+
+    return auth
 
 @asyncio.coroutine
 def data_factory(app, handler):
